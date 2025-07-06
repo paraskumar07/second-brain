@@ -1,0 +1,10 @@
+# Ignore node_modules
+node_modules/
+
+# Ignore the entire config folder
+config/
+
+# Optional ignores
+*.log
+.DS_Store
+dist/
