@@ -7,9 +7,9 @@ import mongoose , {model, Schema} from "mongoose";
 export async function connectDB() {
   try {
     await mongoose.connect("mongodb://127.0.0.1:27017/second-brain");
-    console.log("✅ Connected to MongoDB");
+    console.log("Connected to MongoDB");
   } catch (e) {
-    console.error("❌ Error connecting to MongoDB:", e);
+    console.error("Error connecting to MongoDB:", e);
     process.exit(1); // Stop the server if DB fails
   }
 }
@@ -31,10 +31,16 @@ const contentSchema = new Schema({
     type: {type: String, required: true, enum: ty},
     tags: [{type: String}],
     userId: {type: Schema.Types.ObjectId, ref: "User", required: true},
-    createdAt: {type: Date, default: Date.now},
+    createdAt:  {type: Date, default: Date.now},
     updatedAt: {type: Date, default: Date.now}
 })
+
 export const ContentModel = model("Content", contentSchema);
+
+
+
+
+
 
 
 

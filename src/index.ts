@@ -1,12 +1,11 @@
 import express, { NextFunction } from 'express';
 import { connectDB, UserModel } from './db';
 import { Request, Response } from "express";
-import {z} from 'zod';
 import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
 import path from 'path';
 import bcrypt from 'bcrypt';
-import { loginHandler, validateLogin, validate} from './middleware';
+import { loginHandler, signinMiddleware, signupMiddleware} from './middleware';
 import { ContentModel } from './db';
 
 dotenv.config({ path: path.resolve(__dirname, '../config/.env') });
@@ -15,11 +14,8 @@ const app = express();
 app.use(express.json());
 
 
-
-app.post("/api/v1/signup",validate, async (req: Request, res: Response) => {
-  console.log("Request body: 2", req.body);
+app.post("/api/v1/signup",signupMiddleware, async (req: Request, res: Response) => {
   try {
-    console.log("Request body:3", req.body);
     const { username, password } = req.body;
     console.log("Signup request received:", { username, password });
 
@@ -49,16 +45,11 @@ app.post("/api/v1/signup",validate, async (req: Request, res: Response) => {
 });
 
 
-
-app.post("/api/v1/login", validateLogin ,async (req: Request, res: Response) => {
+app.post("/api/v1/signin", signinMiddleware ,async (req: Request, res: Response) => {
   try {
     const { username, password } = req.body;  
     console.log("Username from request:", username);
     console.log("Username from request:", password);
-
-
-    const allUsers = await UserModel.find({});
-    console.log("All users in DB:", allUsers);
 
     const user = await UserModel.findOne({username});
 
@@ -79,7 +70,7 @@ app.post("/api/v1/login", validateLogin ,async (req: Request, res: Response) => 
     };
 
     const token = jwt.sign(payload,process.env.JWT_SECRET!,{
-      expiresIn: "1h"
+      expiresIn: "5h"
     });
 
     res.status(200).json({
@@ -102,43 +93,33 @@ app.post("/api/v1/login", validateLogin ,async (req: Request, res: Response) => 
 
 
 app.post("/api/v1/addContent", loginHandler , async (req: Request,res: Response)=> {
+    const link = req.body.link;
+    const type = req.body.type;
 
-  try{const { title, link, type, tags } = req.body;
-  if (!req.user?.id) {
-    res.status(401).json({ error: "Unauthorized. No user ID found." });
-    return;
-}
+    try {
+      await ContentModel.create({
+      link,
+      type,
+      title: req.body.title,
+      userId: req.user?.id,
+    })
+    }catch(e){
+      res.status(411).json({
+        error: e,
+        msg:"Cannnot able to add content"
+      })
+      return;
+    }
 
-  await ContentModel.create({
-    title,
-    link,
-    type,
-    tags,
-    userId: req.user, // Assuming user ID is stored in req.user
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  });
-  res.status(200).json({
-    success: true,
-    message: "Content added successfully",
-  });
-  return;}catch (error) {
-    console.error("Error adding content:", error);
-    res.status(500).json({
-      success: false,
-      message: `Internal Server Error ${error}`,
-    });
-    return;
-  }
+    res.json({
+        message: "Content added"
+    })
+
 });
-
-
-
-
 
 
 connectDB().then(() => {
   app.listen(3000, () => {
-    console.log("🚀 Server started on port 3000");
+    console.log("Server started on port 3000");
   });
 });

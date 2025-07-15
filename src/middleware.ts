@@ -26,35 +26,7 @@ declare global {
   }
 }
 
-
-
-export const loginHandler = (req: Request, res: Response, next: NextFunction) => {
-
-  const token = req.headers.authorization;
-  if (!token) {
-    res.status(401).json({ error: "Unauthorized" });
-    return;
-  }
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!);
-    console.log("Decoded token:", decoded);
-    if(!decoded) {
-      res.status(401).json({ error: "Invalid token" });
-      return
-    }
-    const payload = decoded as MyJwtPayload;
-    req.user = { id: payload.id };
-
-    console.log("User ID from token:", req.user);
-    next();
-  } catch (error) {
-    console.error("Token verification error:", error);
-    res.status(401).json({ error: "Invalid token" });
-    return;
-  }
-}
-
-export const validate =  (req:Request,res: Response,next: NextFunction) => {
+export const signupMiddleware =  (req:Request,res: Response,next: NextFunction) => {
 
       console.log("Request body:", req.body);
       const signupSchema = z.object({
@@ -99,7 +71,7 @@ export const validate =  (req:Request,res: Response,next: NextFunction) => {
 }
 
 // Middleware to validate request body for login
-export const validateLogin = (req: Request, res: Response, next: NextFunction) => {
+export const signinMiddleware = (req: Request, res: Response, next: NextFunction) => {
   
   const loginSchema = z.object({
     username: z.string().min(3, "Username must be at least 3 characters long"),
@@ -122,6 +94,34 @@ export const validateLogin = (req: Request, res: Response, next: NextFunction) =
   }
   next();
 }
+
+export const loginHandler = (req: Request, res: Response, next: NextFunction) => {
+
+  const token = req.headers.authorization;
+  if (!token) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!);
+    console.log("Decoded token:", decoded);
+    if(!decoded) {
+      res.status(401).json({ error: "Invalid token" });
+      return
+    }
+    const payload = decoded as MyJwtPayload;
+    req.user = { id: payload.id };
+
+    console.log("User ID from token:", req.user);
+    next();
+  } catch (error) {
+    console.error("Token verification error:", error);
+    res.status(401).json({ error: "Invalid token" });
+    return;
+  }
+}
+
+
 
 
 
