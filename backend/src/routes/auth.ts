@@ -1,110 +1,64 @@
-import { Request, Response } from "express";
-import { UserModel } from "../db";
-import bcrypt from 'bcrypt';
+import { Router } from 'express';
+import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import { JWT_PASSWORD } from "../config";
+import { UserModel } from "../db";
+import { JWT_SECRET } from "../config";
+import { validate } from "../middleware";
+import { z } from "zod";
 
+const router = Router();
 
+// Contract: Username (3-10), password (8-20 w/ 1 upper, 1 lower, 1 digit, 1 special)
+const signupSchema = z.object({
+  username: z.string().min(3).max(10),
+  password: z.string()
+    .min(8).max(20)
+    .regex(/[A-Z]/, "One uppercase required")
+    .regex(/[a-z]/, "One lowercase required")
+    .regex(/[0-9]/, "One number required")
+    .regex(/[^A-Za-z0-9]/, "One special char required"),
+});
 
-export const Signup = async (req: Request, res: Response): Promise<void> => {
-    console.log('Received signup request for username:', req.body.username);
-
-    const username = req.body.username;
-    const password = req.body.password;
-
-    try {
-        // Validate input
-        if (!username || !password) {
-            console.error('Missing credentials:', { username: !!username, password: !!password });
-            res.status(400).json({
-                message: "Username and password are required"
-            });
-            return;
-        }
-
-        // Check if user already exists
-        const existingUser = await UserModel.findOne({ username });
-        if (existingUser) {
-            console.error('User already exists:', username);
-            res.status(409).json({
-                message: "User already exists"
-            });
-            return;
-        }
-
-        // Hash the password
-        const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(password, salt);
-
-        // Create new user with hashed password
-        const newUser = await UserModel.create({
-            username: username,
-            password: hashedPassword
-        });
-
-        console.log('Successfully created user:', username);
-
-        res.status(201).json({
-            message: "User signed up successfully",
-            userId: newUser._id
-        });
-    } catch (error) {
-        console.error('Error creating user:', error);
-        res.status(500).json({
-            message: "Error creating user",
-            error: error instanceof Error ? error.message : "Unknown error"
-        });
+router.post("/signup", validate(signupSchema), async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    const userExists = await UserModel.findOne({ username });
+    if (userExists) {
+      res.status(403).json({ message: "User already exists with this username"});
+      return;
     }
-}
-export const Signin = async (req: Request, res: Response): Promise<void> => {
-    console.log('Received signin request for username:', req.body.username);
+    const hash = await bcrypt.hash(password, 10);
+    await UserModel.create({ username, password: hash });
+    res.status(200).json({ message: "Signed up" });
+  } catch (e) {
+    res.status(500).json({ message: "Server error" });
+  }
+});
 
-    const username = req.body.username;
-    const password = req.body.password;
+// Contract: 411 if bad inputs, 403 on not found/bad password, 500 on other
+const signinSchema = z.object({
+  username: z.string().min(3).max(10),
+  password: z.string().min(8).max(20),
+});
 
-    try {
-        // Validate input
-        if (!username || !password) {
-            console.error('Missing credentials:', { username: !!username, password: !!password });
-            res.status(400).json({
-                message: "Username and password are required"
-            });
-            return;
-        }
-
-        const existingUser = await UserModel.findOne({ username });
-        if (!existingUser) {
-            console.error('User not found:', username);
-            res.status(403).json({
-                message: "User not found"
-            });
-            return;
-        }
-
-        // Compare password with hashed password
-        const isPasswordValid = await bcrypt.compare(password, existingUser.password || '');
-        if (!isPasswordValid) {
-            console.error('Invalid password for user:', username);
-            res.status(403).json({
-                message: "Incorrect password"
-            });
-            return;
-        }
-
-        const token = jwt.sign({
-            id: existingUser._id
-        }, JWT_PASSWORD);
-
-        console.log('Successfully signed in user:', username);
-
-        res.json({
-            token
-        });
-    } catch (error) {
-        console.error('Error during signin:', error);
-        res.status(500).json({
-            message: "Error signing in",
-            error: error instanceof Error ? error.message : "Unknown error"
-        });
+router.post("/signin", validate(signinSchema), async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    const user = await UserModel.findOne({ username });
+    if (!user) {
+      res.status(403).json({ message: "Wrong email password" });
+      return;
     }
-}
+    const isValid = await bcrypt.compare(password, user.password);
+    if (!isValid) {
+      res.status(403).json({ message: "Wrong email password" });
+      return;
+    }
+    const token = jwt.sign({ id: user._id }, JWT_SECRET, { expiresIn: "6h" });
+    res.status(200).json({ token });
+  } catch (e) {
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+export default router;

@@ -1,172 +1,28 @@
-import express, { NextFunction } from 'express';
-import { connectDB, UserModel } from './db';
-import { Request, Response } from "express";
-import jwt from 'jsonwebtoken';
-import dotenv from 'dotenv';
-import path from 'path';
-import bcrypt from 'bcrypt';
-import { loginHandler, signinMiddleware, signupMiddleware} from './middleware';
-import { ContentModel } from './db';
-
-dotenv.config({ path: path.resolve(__dirname, '../config/.env') });
+import express from "express";
+import cors from "cors";
+import { connectDB } from "./db";
+import { PORT } from "./config";
+import authRoutes from "./routes/auth";
+import contentRoutes from "./routes/content";
+import brainRoutes from "./routes/brain";
 
 const app = express();
+
+app.use(cors({ origin: "http://localhost:5173", credentials: true }));
 app.use(express.json());
 
+// Mount routers (only ONCE per router)
+app.use("/api/v1", authRoutes);       // /signup and /signin are inside authRoutes
+app.use("/api/v1/content", contentRoutes);
+app.use("/api/v1/brain", brainRoutes);
 
-app.post("/api/v1/signup",signupMiddleware, async (req: Request, res: Response) => {
-  try {
-    const { username, password } = req.body;
-    console.log("Signup request received:", { username, password });
 
-    const user = await UserModel.findOne({ username });
-    if (user) {
-      res.status(403).json({ error: "Username already exists" });
-      return;
-    }
-    const saltRounds = 10; // standard strength
-    const hashedPassword = await bcrypt.hash(password, saltRounds);
-
-    await UserModel.create({ username, password: hashedPassword});
-
-    res.status(200).json({
-      success: true,
-      message: "User created successfully",
-    });
-    return;
-  } catch (error) {
-      console.error("Signup error:", error);
-      res.status(500).json({
-        success: false,
-        message: "Internal Server Error",
-      });
-      return;
-  }
+app.get("/", (_req, res) => {
+  res.send("Second Brain API is running.");
 });
-
-
-app.post("/api/v1/signin", signinMiddleware ,async (req: Request, res: Response) => {
-  try {
-    const { username, password } = req.body;  
-    console.log("Username from request:", username);
-    console.log("Username from request:", password);
-
-    const user = await UserModel.findOne({username});
-
-    if (!user) {
-      res.status(403).json({ error: "user does not exists" });
-      return;
-    }
-
-    // Check if the password matches the hashed password in the database
-    const isPasswordValid = await bcrypt.compare(password, user.password);
-    if (!isPasswordValid) {
-      res.status(403).json({ error: "Invalid password" });
-      return;
-    }
-
-    const payload = {
-      id: user._id,
-    };
-
-    const token = jwt.sign(payload,process.env.JWT_SECRET!,{
-      expiresIn: "5h"
-    });
-
-    res.status(200).json({
-      success: true,
-      message: "Login successful",
-      token,
-    });
-    return;
-    
-  } catch (error) {
-    console.error("Login error:", error);
-    res.status(500).json({
-      success: false,
-      message: `Internal Server Error ${error}`,
-    });
-    return;
-  }
-
-});
-
-
-app.post("/api/v1/addContent", loginHandler , async (req: Request,res: Response)=> {
-    const link = req.body.link;
-    const type = req.body.type;
-
-    try {
-      await ContentModel.create({
-      link,
-      type,
-      title: req.body.title,
-      userId: req.user?.id,
-    })
-    }catch(e){
-      res.status(411).json({
-        error: e,
-        msg:"Cannnot able to add content"
-      })
-      return;
-    }
-
-    res.json({
-        message: "Content added"
-    })
-
-});
-
 
 connectDB().then(() => {
-  app.listen(3000, () => {
-    console.log("Server started on port 3000");
+  app.listen(PORT, () => {
+    console.log(`Server running at http://localhost:${PORT}/`);
   });
 });
-
-
-
-
-
-/*
-import dotenv from 'dotenv';
-dotenv.config();
-
-import express from "express";
-// import { ContentModel, LinkModel, UserModel } from "./db";
-// import { JWT_PASSWORD, frontendUrl } from "./config";
-import { userMiddleware } from "./middleware";
-import cors from "cors";
-import { Signin, Signup } from "./routes/auth";
-import { DeleteContent, GetContent, PostContent, PutContent } from "./routes/content";
-import { GetShareBrain, PostShareBrain } from "./routes/brain";
-
-
-const app = express();
-app.use(express.json());
-
-
-app.use(
-  cors({
-    origin: [
-      "http://localhost:5173",
-    ],
-    methods: ["GET", "POST", "PUT", "DELETE"],
-    credentials: true,
-  })
-);
-
-app.post("/api/v1/signup", Signup);
-app.post("/api/v1/signin", Signin);
-app.post("/api/v1/content", userMiddleware, PostContent);
-app.get("/api/v1/content", userMiddleware, GetContent);
-app.put("/api/v1/content", userMiddleware, PutContent);
-app.delete("/api/v1/content", userMiddleware, DeleteContent)
-app.post("/api/v1/brain/share", userMiddleware, PostShareBrain);
-app.get("/api/v1/brain/:shareLink", GetShareBrain);
-
-app.listen(3000, () => {
-    console.log(`Server is running on port 3000`);
-});
-
-*/
