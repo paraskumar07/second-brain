@@ -16,7 +16,7 @@ app.use("/api/v1", authRoutes);       // /signup and /signin are inside authRout
 app.use("/api/v1/content", contentRoutes);
 app.use("/api/v1/brain", brainRoutes);
 
-
+// SIMPLE HEALTHCHECK - This is CORRECT usage!
 app.get("/", (_req, res) => {
   res.send("Second Brain API is running.");
 });
